@@ -57,6 +57,7 @@ jobs:
           docker build \
             --build-arg=REACT_APP_MOVIE_API_URL=http://a33160c0ec3cc49d3813add06a6f8208-176621511.us-east-1.elb.amazonaws.com \
             -t ${{ steps.ecr.outputs.registry }}/frontend:${{ github.sha }} .
+          docker push ${{ steps.ecr.outputs.registry }}/frontend:${{ github.sha }}
 
   deploy:
     needs: build
