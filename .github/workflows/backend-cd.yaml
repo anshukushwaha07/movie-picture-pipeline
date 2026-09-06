@@ -1,9 +1,9 @@
-name: Frontend Continuous Deployment
+name: Backend Continuous Deployment
 
 on:
   push:
-    branches: [main]
-    paths: ['starter/frontend/**']
+    branches: [main, master]
+    paths: ['starter/backend/**']
   workflow_dispatch:
 
 jobs:
@@ -11,31 +11,29 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: starter/frontend
+        working-directory: starter/backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '18'
-          cache: npm
-          cache-dependency-path: starter/frontend/package-lock.json
-      - run: npm ci
-      - run: npm run lint
+          python-version: '3.10'
+      - run: pip install pipenv
+      - run: pipenv install --dev
+      - run: pipenv run lint
 
   test:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: starter/frontend
+        working-directory: starter/backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '18'
-          cache: npm
-          cache-dependency-path: starter/frontend/package-lock.json
-      - run: npm ci
-      - run: CI=true npm test
+          python-version: '3.10'
+      - run: pip install pipenv
+      - run: pipenv install --dev
+      - run: pipenv run test
 
   build:
     needs: [lint, test]
@@ -52,12 +50,10 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
       - name: Build and push image tagged with git SHA
-        working-directory: starter/frontend
+        working-directory: starter/backend
         run: |
-          docker build \
-            --build-arg=REACT_APP_MOVIE_API_URL=http://a33160c0ec3cc49d3813add06a6f8208-176621511.us-east-1.elb.amazonaws.com \
-            -t ${{ steps.ecr.outputs.registry }}/frontend:${{ github.sha }} .
-          docker push ${{ steps.ecr.outputs.registry }}/frontend:${{ github.sha }}
+          docker build -t ${{ steps.ecr.outputs.registry }}/backend:${{ github.sha }} .
+          docker push ${{ steps.ecr.outputs.registry }}/backend:${{ github.sha }}
 
   deploy:
     needs: build
@@ -76,7 +72,7 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name cluster --region us-east-1
       - name: Deploy to cluster
-        working-directory: starter/frontend/k8s
+        working-directory: starter/backend/k8s
         run: |
-          kustomize edit set image frontend=${{ steps.ecr.outputs.registry }}/frontend:${{ github.sha }}
+          kustomize edit set image backend=${{ steps.ecr.outputs.registry }}/backend:${{ github.sha }}
           kustomize build | kubectl apply -f -
